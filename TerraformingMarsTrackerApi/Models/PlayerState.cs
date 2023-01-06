@@ -12,6 +12,7 @@
 
         public Player Player { get; set; } = new Player();
 
+
         public void Produce()
         {
             MegaCredits.Amount = MegaCredits.Amount + MegaCredits.Production + TerraformRating;

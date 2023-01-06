@@ -105,6 +105,11 @@ namespace TerraformingMarsTrackerApi
 
         public GameState TryJoinGame(string gameName, string userName, string userId)
         {
+            if (gameName == "TEST_GAME")
+            {
+                var testGame = HandleTestGame(gameName, userName, userId);
+                return testGame;
+            }
             if (_memoryCache.TryGetValue(gameName, out GameState gameState))
             {                
                 if (!gameState.Boards.Any(x => x.Player.PlayerId == userId))
@@ -127,7 +132,48 @@ namespace TerraformingMarsTrackerApi
                 }
                 return gameState;
             }
+            
             throw new Exception("Could not find game!");
+        }
+
+        private GameState HandleTestGame(string gameName, string userName, string userId)
+        {
+            var newGame = new GameState(gameName);
+            var newBoard = new BoardState()
+            {
+                Titanium = new Resource { Amount = 1, Production = 1 },
+                Energy = new Resource() { Production = 2 },
+                Plants = new Resource() { Amount = 1, Production = 2 },
+                Player = new Player()
+                {
+                    PlayerName = userName,
+                    PlayerId = userId
+                }
+            };
+            var p2 = new BoardState()
+            {
+                Steel = new Resource { Amount = 3, Production = 2},
+                Energy = new Resource() { Production = 1},
+                Player = new Player()
+                {
+                    PlayerName = "Dummy Player 1",
+                    PlayerId = "Dummy Player 1"
+                }
+            };
+            var p3 = new BoardState()
+            {
+                Player = new Player()
+                {
+                    PlayerName = "Dummy Player 2",
+                    PlayerId = "Dummy Player 2"
+                }
+            };
+            newGame.Boards.Add(newBoard);
+            newGame.Boards.Add(p2);
+            newGame.Boards.Add(p3);
+            newGame.Messages.Insert(0, $"{newBoard.Player.PlayerName} created the game " + gameName);
+            SaveGameState(newGame);
+            return newGame;
         }
 
         public GameState SetReady(string gameName, string userId)
@@ -143,7 +189,7 @@ namespace TerraformingMarsTrackerApi
                 var playerBoard = gameState.Boards.First(x => x.Player.PlayerId == userId);
                 gameState.Messages.Insert(0, $"{board.Player.PlayerName} is ready to start. MC {playerBoard.MegaCredits}, Steel: {playerBoard.Steel}, " +
                     $"Titanium: {playerBoard.Titanium}, Plants: {playerBoard.Plants}, Energy: {playerBoard.Energy}, Heat: {playerBoard.Heat}, TR: {playerBoard.TerraformRating}");
-                if (gameState.Boards.Count > 1 && gameState.Boards.All(x => x.Player.ReadyToStart))
+                if ((gameState.Boards.Count > 1 && gameState.Boards.All(x => x.Player.ReadyToStart)) || gameState.GameCode == "TEST_GAME")
                 {
                     gameState.Started = true;
                     gameState.Messages.Insert(0, "Game started!");
@@ -165,10 +211,10 @@ namespace TerraformingMarsTrackerApi
                 }
                 callingBoard.Player.ReadyToProduce = true;
                 gameState.Messages.Insert(0, $"{callingBoard.Player.PlayerName} is ready to produce");
-                if (gameState.Boards.All(x => x.Player.ReadyToProduce))
+                if (gameState.Boards.All(x => x.Player.ReadyToProduce) || gameName == "TEST_GAME")
                 {
                     gameState.Produce();
-                    gameState.Messages.Insert(0, "Production Done!");
+                    gameState.Messages.Insert(0, $"Production Done, turn {gameState.Turn}");
                 }
                 SaveGameState(gameState);
                 return gameState;
