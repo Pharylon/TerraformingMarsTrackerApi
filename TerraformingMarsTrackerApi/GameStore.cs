@@ -5,17 +5,20 @@ namespace TerraformingMarsTrackerApi
 {
     public class GameStore
     {
-        private readonly IMemoryCache _memoryCache;
-        public GameStore(IMemoryCache memoryCache)
+        private CosmosDbClient _cosmosClinet;
+        public GameStore(CosmosDbClient cosmosClient)
         {
-            _memoryCache = memoryCache;
+            _cosmosClinet = cosmosClient;
         }
 
-        public (bool, GameState?) StartGame(string gameName, string userName, string userId)
+
+
+        public async Task<(bool, GameState?)> StartGame(string gameName, string userName, string userId)
         {
-            if (!_memoryCache.TryGetValue(gameName, out GameState gameState))
+            var (success, gameState) = await _cosmosClinet.Get(gameName);
+            if (!success)
             {
-                var newGame = new GameState(gameName);
+                gameState = new GameState(gameName);
                 var newBoard = new BoardState()
                 {
                     Player = new Player()
@@ -24,25 +27,26 @@ namespace TerraformingMarsTrackerApi
                         PlayerId = userId
                     }
                 };
-                newGame.Boards.Add(newBoard);
-                newGame.Messages.Insert(0, $"{newBoard.Player.PlayerName} created the game " + gameName);
-                SaveGameState(newGame);
-                return (true, newGame);
+                gameState.Boards.Add(newBoard);
+                gameState.Messages.Insert(0, $"{newBoard.Player.PlayerName} created the game " + gameName);
+                await _cosmosClinet.Create(gameState);
+                return (true, gameState);
             }
             return (false, null);
         }
 
 
-        private void SaveGameState(GameState gameState)
-        {
-            var options = new MemoryCacheEntryOptions();
-            options.SlidingExpiration = TimeSpan.FromHours(12);
-            _memoryCache.Set(gameState.GameCode, gameState, options);
-        }
+        //private void SaveGameState(GameState gameState)
+        //{
+        //    var options = new MemoryCacheEntryOptions();
+        //    options.SlidingExpiration = TimeSpan.FromHours(12);
+        //    _memoryCache.Set(gameState.GameCode, gameState, options);
+        //}
 
-        public GameState UpdateGame(UpdateModel updateModel, string playerId)
+        public async Task<GameState> UpdateGame(UpdateModel updateModel, string playerId)
         {
-            if (_memoryCache.TryGetValue(updateModel.GameCode, out GameState gameState))
+            var (success, gameState) = await _cosmosClinet.Get(updateModel.GameCode);
+            if (success && gameState != null)
             {
                 var playerBoard = gameState.Boards.First(x => x.Player.PlayerId == playerId);
                 if (updateModel.Resource.Equals("MegaCredits", StringComparison.OrdinalIgnoreCase))
@@ -77,7 +81,7 @@ namespace TerraformingMarsTrackerApi
                         gameState.Messages.Insert(0, $"{playerBoard.Player.PlayerName.Trim()}'s TR changed by {updateModel.AdjustmentAmount}");
                     }
                 }
-                SaveGameState(gameState);
+                await _cosmosClinet.Update(gameState);
                 return gameState;
             }
             throw new Exception("Could not find Game Board for that code!");
@@ -103,14 +107,15 @@ namespace TerraformingMarsTrackerApi
             }
         }
 
-        public GameState TryJoinGame(string gameName, string userName, string userId)
+        public async Task<GameState> TryJoinGame(string gameName, string userName, string userId)
         {
             if (gameName == "TEST_GAME")
             {
-                var testGame = HandleTestGame(gameName, userName, userId);
+                var testGame = await HandleTestGame(gameName, userName, userId);
                 return testGame;
             }
-            if (_memoryCache.TryGetValue(gameName, out GameState gameState))
+            var (success, gameState) = await _cosmosClinet.Get(gameName);
+            if (success && gameState != null)
             {                
                 if (!gameState.Boards.Any(x => x.Player.PlayerId == userId))
                 {
@@ -128,7 +133,7 @@ namespace TerraformingMarsTrackerApi
                         Player = newPlayer
                     });
                     gameState.Messages.Insert(0, $"{userName} has joined the game");
-                    SaveGameState(gameState);
+                    await _cosmosClinet.Update(gameState);
                 }
                 return gameState;
             }
@@ -136,8 +141,9 @@ namespace TerraformingMarsTrackerApi
             throw new Exception("Could not find game!");
         }
 
-        private GameState HandleTestGame(string gameName, string userName, string userId)
+        private async Task<GameState> HandleTestGame(string gameName, string userName, string userId)
         {
+
             var newGame = new GameState(gameName);
             var newBoard = new BoardState()
             {
@@ -172,13 +178,15 @@ namespace TerraformingMarsTrackerApi
             newGame.Boards.Add(p2);
             newGame.Boards.Add(p3);
             newGame.Messages.Insert(0, $"{newBoard.Player.PlayerName} created the game " + gameName);
-            SaveGameState(newGame);
+            await _cosmosClinet.Delete("TEST_GAME");
+            await _cosmosClinet.Create(newGame);
             return newGame;
         }
 
-        public GameState SetReady(string gameName, string userId)
+        public async Task<GameState> SetReady(string gameName, string userId)
         {
-            if (_memoryCache.TryGetValue(gameName, out GameState gameState))
+            var (success, gameState) = await _cosmosClinet.Get(gameName);
+            if (success && gameState != null)
             {
                 var board = gameState.Boards.FirstOrDefault(x => x.Player.PlayerId == userId);
                 if (board == null)
@@ -194,15 +202,16 @@ namespace TerraformingMarsTrackerApi
                     gameState.Started = true;
                     gameState.Messages.Insert(0, "Game started!");
                 }
-                SaveGameState(gameState);
+                await _cosmosClinet.Update(gameState);
                 return gameState;
             }
             throw new Exception("Could not find game");
         }
 
-        public GameState SetReadyToProduce(string gameName, string userId)
+        public async Task<GameState> SetReadyToProduce(string gameName, string userId)
         {
-            if (_memoryCache.TryGetValue(gameName, out GameState gameState))
+            var (success, gameState) = await _cosmosClinet.Get(gameName);
+            if (success && gameState != null)
             {
                 var callingBoard = gameState.Boards.FirstOrDefault(x => x.Player.PlayerId == userId);
                 if (callingBoard == null)
@@ -216,7 +225,7 @@ namespace TerraformingMarsTrackerApi
                     gameState.Produce();
                     gameState.Messages.Insert(0, $"Production Done, turn {gameState.Turn}");
                 }
-                SaveGameState(gameState);
+                await _cosmosClinet.Update(gameState);
                 return gameState;
             }
             throw new Exception("Could not find game");

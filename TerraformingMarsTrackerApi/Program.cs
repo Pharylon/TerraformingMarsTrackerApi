@@ -16,6 +16,8 @@ builder.Services.AddSignalR();
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<GameStore>();
 builder.Services.Configure<CosmosConfig>(builder.Configuration.GetSection("CosmosConfig"));
+builder.Services.AddSingleton<CosmosDbClient>();
+
 
 var app = builder.Build();
 

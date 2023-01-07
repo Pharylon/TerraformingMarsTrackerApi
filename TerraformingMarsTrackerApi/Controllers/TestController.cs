@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using TerraformingMarsTrackerApi.Models;
 
 namespace TerraformingMarsTrackerApi.Controllers
 {
@@ -6,20 +7,26 @@ namespace TerraformingMarsTrackerApi.Controllers
     [Route("[controller]")]
     public class TestController : ControllerBase
     {
+        private CosmosDbClient _db;
 
         private readonly ILogger<TestController> _logger;
 
-        public TestController(ILogger<TestController> logger)
+        public TestController(ILogger<TestController> logger, CosmosDbClient db)
         {
             _logger = logger;
+            _db = db;
         }
 
-        [HttpGet(Name = "TestDb")]
-        public async Task<Root> TestDb()
+        [HttpGet]
+        [Route("GetGame/{gameCode}")]
+        public async Task<GameState> TestDb(string gameCode)
         {
-            var cdb = new DbClient();
-            var item = await cdb.Connect();
-            return item;
+            var (success, item) = await _db.Get(gameCode);
+            if (success && item != null)
+            {
+                return item;
+            }
+            throw new Exception();
         }
     }
 }

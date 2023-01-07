@@ -6,9 +6,13 @@ namespace TerraformingMarsTrackerApi.Hubs
     public class TfmHub : Hub
     {
         private GameStore _gameStore;
-        public TfmHub(GameStore gameStore)
+        private readonly ILogger<TfmHub> _logger;
+
+
+        public TfmHub(GameStore gameStore, ILogger<TfmHub> logger)
         {
             _gameStore = gameStore;
+            _logger = logger;
         }
 
         public async Task SendMessage(string user, string message)
@@ -23,21 +27,28 @@ namespace TerraformingMarsTrackerApi.Hubs
 
         public async Task StartGame(string groupName, string userName, string userId)
         {
-            var (success, gameState) = _gameStore.StartGame(groupName.Trim(), userName.Trim(), userId);
-            if (success)
+            try
             {
-                await Groups.AddToGroupAsync(Context.ConnectionId, groupName);
-                await Clients.Group(groupName).SendAsync("GameUpdate", gameState);
+                var (success, gameState) = await _gameStore.StartGame(groupName.Trim(), userName.Trim(), userId);
+                if (success)
+                {
+                    await Groups.AddToGroupAsync(Context.ConnectionId, groupName);
+                    await Clients.Group(groupName).SendAsync("GameUpdate", gameState);
+                }
+                else
+                {
+                    await Clients.Caller.SendAsync("ErrorMessage", "Game Already Exists");
+                }
             }
-            else
+            catch(Exception ex)
             {
-                await Clients.Caller.SendAsync("ErrorMessage", "Game Already Exists");
-            }            
+                _logger.LogError(ex, "Error starting game");
+            }       
         }
 
         public async Task UpdateGame(UpdateModel updateModel, string userId)
         {
-            var newBoard = _gameStore.UpdateGame(updateModel, userId);
+            GameState newBoard = await _gameStore.UpdateGame(updateModel, userId);
             await Clients.Group(updateModel.GameCode).SendAsync("GameUpdate", newBoard);
         }
 
@@ -46,7 +57,7 @@ namespace TerraformingMarsTrackerApi.Hubs
             await Groups.AddToGroupAsync(Context.ConnectionId, gameCode);
             try
             {
-                var newBoard = _gameStore.TryJoinGame(gameCode.Trim(), userName.Trim(), userId);
+                GameState newBoard = await _gameStore.TryJoinGame(gameCode.Trim(), userName.Trim(), userId);
                 await Clients.Group(gameCode).SendAsync("GameUpdate", newBoard);
             }            
             catch (Exception ex)
@@ -60,7 +71,7 @@ namespace TerraformingMarsTrackerApi.Hubs
         {
             try
             {
-                var gamestate = _gameStore.SetReady(gameCode, userId);
+                GameState gamestate = await _gameStore.SetReady(gameCode, userId);
                 await Clients.Group(gameCode).SendAsync("GameUpdate", gamestate);
             }
             catch(Exception ex)
@@ -73,7 +84,7 @@ namespace TerraformingMarsTrackerApi.Hubs
         {
             try
             {
-                var gamestate = _gameStore.SetReadyToProduce(gameCode, userId);
+                GameState gamestate = await _gameStore.SetReadyToProduce(gameCode, userId);
                 await Clients.Group(gameCode).SendAsync("GameUpdate", gamestate);
             }
             catch (Exception ex)
