@@ -11,7 +11,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSignalR();
 #if DEBUG
-builder.WebHost.UseUrls("http://0.0.0.0:33602");
+//builder.WebHost.UseUrls("http://0.0.0.0:33602");
 #endif
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<GameStore>();
