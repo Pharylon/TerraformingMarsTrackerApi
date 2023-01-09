@@ -49,7 +49,15 @@ namespace TerraformingMarsTrackerApi.Hubs
         public async Task UpdateGame(UpdateModel updateModel, string userId)
         {
             GameState newBoard = await _gameStore.UpdateGame(updateModel, userId);
+            await Groups.AddToGroupAsync(Context.ConnectionId, updateModel.GameCode);
             await Clients.Group(updateModel.GameCode).SendAsync("GameUpdate", newBoard);
+        }
+
+        public async Task UpdateGameById(UpdateModelNew updateModel, string userId)
+        {
+            GameState newBoard = await _gameStore.UpdateGameById(updateModel, userId);
+            await Groups.AddToGroupAsync(Context.ConnectionId, newBoard.GameCode);
+            await Clients.Group(newBoard.GameCode).SendAsync("GameUpdate", newBoard);
         }
 
         public async Task JoinGame(string gameCode, string userName, string userId)
@@ -72,7 +80,8 @@ namespace TerraformingMarsTrackerApi.Hubs
             try
             {
                 GameState gamestate = await _gameStore.SetReady(gameCode, userId);
-                await Clients.Group(gameCode).SendAsync("GameUpdate", gamestate);
+                await Groups.AddToGroupAsync(Context.ConnectionId, gamestate.GameCode);
+                await Clients.Group(gamestate.GameCode).SendAsync("GameUpdate", gamestate);
             }
             catch(Exception ex)
             {
@@ -85,7 +94,22 @@ namespace TerraformingMarsTrackerApi.Hubs
             try
             {
                 GameState gamestate = await _gameStore.SetReadyToProduce(gameCode, userId);
-                await Clients.Group(gameCode).SendAsync("GameUpdate", gamestate);
+                await Groups.AddToGroupAsync(Context.ConnectionId, gamestate.GameCode);
+                await Clients.Group(gamestate.GameCode).SendAsync("GameUpdate", gamestate);
+            }
+            catch (Exception ex)
+            {
+                await Clients.Caller.SendAsync("ErrorMessage", ex.Message);
+            }
+        }
+
+        public async Task LeaveGame(string gameId, string userId)
+        {
+            try
+            {
+                var gameState = await _gameStore.LeaveGame(gameId, userId);
+                await Groups.RemoveFromGroupAsync(Context.ConnectionId, gameState.GameCode);
+                await Clients.Group(gameState.GameCode).SendAsync("GameUpdate", gameState);
             }
             catch (Exception ex)
             {

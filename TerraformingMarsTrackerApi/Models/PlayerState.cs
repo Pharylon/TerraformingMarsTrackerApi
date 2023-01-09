@@ -2,13 +2,13 @@
 {
     public class BoardState
     {
-        public Resource MegaCredits { get; set; } = new Resource { Amount = 20 };
+        public Resource MegaCredits { get; set; } = new Resource() { Amount = 30};
         public Resource Steel { get; set; } = new Resource();
         public Resource Plants { get; set; } = new Resource();
         public Resource Titanium { get; set; } = new Resource();
         public Resource Energy { get; set; } = new Resource();
         public Resource Heat { get; set; } = new Resource();
-        public int TerraformRating { get; set; }
+        public int TerraformRating { get; set; } = 20;
 
         public Player Player { get; set; } = new Player();
 

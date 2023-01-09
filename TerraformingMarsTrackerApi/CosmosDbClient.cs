@@ -3,6 +3,7 @@ using Azure.Identity;
 using Microsoft.Extensions.Options;
 using TerraformingMarsTrackerApi.Models;
 using Microsoft.Extensions.Caching.Memory;
+using System.Net;
 
 namespace TerraformingMarsTrackerApi
 {
@@ -76,6 +77,29 @@ namespace TerraformingMarsTrackerApi
                 return (false, null);
             }
             catch(Exception ex)
+            {
+                _logger.LogError(ex, "Error Getting game");
+                throw;
+            }
+        }
+
+
+        public async Task<(bool, GameState?)> GetById(string gameId)
+        {
+            try
+            {
+                var response = await _container.ReadItemAsync<GameState>(gameId, new PartitionKey(gameId));
+                if (response.Resource != null)
+                {
+                    return (true, response.Resource);
+                }
+                return (false, null);
+            }
+            catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+            {
+                return (false, null);
+            }
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Error Getting game");
                 throw;
